@@ -1,0 +1,6 @@
+Function = qdma_xmit_pkts
+
+2048 -> 4095 : 68 |********|
+32768 -> 65535 : 1 |*|
+
+avg = 3368 nsecs, total: 232428 nsecs, count: 69

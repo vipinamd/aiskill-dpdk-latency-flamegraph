@@ -1,0 +1,28 @@
+Goal:
+Build/maintain a one-command CLI tool called dpdk-fg.
+
+It must collect perf, funclatency, topology, thread placement, IRQ snapshots, and emit an enhanced FlameGraph SVG.
+
+Critical rules:
+- Do not modify FlameGraph frame width.
+- Width means CPU sample weight.
+- Latency is tooltip + border.
+- DPDK/PMD/kernel classification is fill color.
+- Kernel interaction is darker DPDK/PMD shade.
+- Topology is stroke/pattern + tooltip.
+- Do not claim causality; say "associated with kernel interaction".
+
+Inputs:
+- --pid PID or --app -- command args
+- --duration seconds
+- --functions funclatency patterns
+- --flamegraph-dir path
+- --out output directory
+
+Outputs:
+- dpdk-final.svg
+- latency.json
+- topology.json
+- frame_cpu.json
+- kernel_interaction.json
+- raw perf/funclatency files
