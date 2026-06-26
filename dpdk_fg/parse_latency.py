@@ -42,10 +42,21 @@ def parse_funclatency(path: str) -> dict:
     for raw in Path(path).read_text(errors="ignore").splitlines():
         line = raw.strip()
 
-        # New function block
+        # Multi-function block header: "Function = <name>"
         m = re.search(r"Function\s*=\s*(.*)", line)
         if m:
             current = normalize_func(m.group(1).strip())
+            data[current] = {}
+            buckets = []
+            continue
+
+        # Single-function header (funclatency -p PID <pat> or uprobe lib:func):
+        #   Tracing 1 functions for "EVP_EncryptUpdate"... Hit Ctrl-C to end.
+        #   Tracing 1 functions for "/usr/lib/.../libcrypto.so.3:EVP_EncryptUpdate"...
+        m = re.search(r'Tracing\s+\d+\s+functions?\s+for\s+"([^"]+)"', line)
+        if m:
+            name = m.group(1).split(":")[-1]   # strip 'binpath:' for uprobes
+            current = normalize_func(name)
             data[current] = {}
             buckets = []
             continue

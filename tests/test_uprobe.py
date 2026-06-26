@@ -9,7 +9,39 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from dpdk_fg.cli import build_funclatency_cmds, _safe_label
+from dpdk_fg.cli import parse_funclatency as parse_cli
+from dpdk_fg.parse_latency import parse_funclatency as parse_std
 from dpdk_fg.profile import load_profile, save_profile
+
+
+_UPROBE_OUT = '''Tracing 1 functions for "/usr/lib/x86_64-linux-gnu/libcrypto.so.3:EVP_EncryptUpdate"... Hit Ctrl-C to end.
+
+     nsecs               : count     distribution
+      2048 -> 4095       : 2330927  |****************************************|
+      8192 -> 16383      : 8243     |                                        |
+
+avg = 2557 nsecs, total: 5990181019 nsecs, count: 2342525
+
+Detaching...
+'''
+
+
+def _write_tmp(text):
+    import tempfile, os
+    f = os.path.join(tempfile.gettempdir(), "fl_uprobe_test.txt")
+    open(f, "w").write(text)
+    return f
+
+
+def test_parser_handles_uprobe_tracing_header():
+    # funclatency single-function/uprobe output has no 'Function =' line; the name
+    # comes from the 'Tracing N functions for "binpath:func"' header.
+    f = _write_tmp(_UPROBE_OUT)
+    for parse in (parse_cli, parse_std):
+        d = parse(f)
+        assert "EVP_EncryptUpdate" in d, parse
+        assert d["EVP_EncryptUpdate"]["avg_ns"] == 2557
+        assert d["EVP_EncryptUpdate"]["count"] == 2342525
 
 
 def _argvs(cmds):

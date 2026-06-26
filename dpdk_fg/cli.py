@@ -237,6 +237,14 @@ def parse_funclatency(path):
             data[current] = {}
             buckets = []
             continue
+        # Single-function header: 'Tracing 1 functions for "binpath:func"...'
+        # (funclatency -p PID <pat> and uprobe lib:func mode emit no 'Function =')
+        m = re.search(r'Tracing\s+\d+\s+functions?\s+for\s+"([^"]+)"', line)
+        if m:
+            current = normalize_func(m.group(1).split(":")[-1])
+            data[current] = {}
+            buckets = []
+            continue
         m = re.match(r"(\d+)\s*->\s*(\d+)\s*:\s*(\d+)", line)
         if m:
             buckets.append(tuple(map(int, m.groups())))
