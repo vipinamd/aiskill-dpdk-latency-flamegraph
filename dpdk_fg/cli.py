@@ -381,6 +381,7 @@ def main(argv=None):
     perf_data = outdir / "perf.data"
     perf_proc = popen([
         "perf", "record", "-F", "999", "-g", "--call-graph", "dwarf",
+        "--sample-cpu",  # record per-sample CPU so topology (CCX/CCD/NUMA) can be mapped per frame
         "-p", str(pid), "-o", str(perf_data), "--", "sleep", str(args.duration),
     ])
 
