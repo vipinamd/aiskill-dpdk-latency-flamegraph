@@ -86,6 +86,93 @@ def normalize_func(name: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# funclatency command construction (kprobe vs uprobe)
+# ---------------------------------------------------------------------------
+
+def resolve_uprobe_target(token, pid):
+    """Resolve a uprobe target token to a concrete binary/library path.
+
+    'exe' (or '') resolves to the profiled process's own executable via
+    /proc/PID/exe — covers statically-linked DPDK apps. Anything else is treated
+    as a literal path. Returns the path string, or None if it can't be resolved.
+    """
+    if token in ("exe", ""):
+        if pid is None:
+            return None
+        try:
+            return os.readlink(f"/proc/{pid}/exe")
+        except OSError:
+            return None
+    return token
+
+
+def build_funclatency_cmds(pid, patterns, uprobe_targets, duration=None):
+    """Build one funclatency-bpfcc command per (pattern[, uprobe target]).
+
+    Resolution per pattern:
+      1. Pattern already contains ':' (bcc-native 'binpath:func' or 'exe:func')
+         → treat as a uprobe spec, expanding a leading 'exe:' to /proc/PID/exe.
+      2. uprobe_targets given → emit one uprobe command per target ('TARGET:pat').
+      3. otherwise → kprobe ('-u pat'), the original default behavior.
+
+    Returns a list of (argv, label) tuples. Label is a filesystem-safe tag used
+    for the per-command output filename.
+    """
+    base = ["funclatency-bpfcc", "-p", str(pid)]
+    if duration is not None:
+        base += ["-d", str(duration)]
+
+    cmds = []
+    for pat in patterns:
+        if ":" in pat:
+            left, _, func = pat.partition(":")
+            target = resolve_uprobe_target(left, pid)
+            spec = f"{target}:{func}" if target else pat
+            cmds.append((base + [spec], _safe_label(func)))
+        elif uprobe_targets:
+            for tgt in uprobe_targets:
+                cmds.append((base + [f"{tgt}:{pat}"], _safe_label(pat)))
+        else:
+            # kprobe path — unchanged default
+            cmds.append((base + ["-u", pat], _safe_label(pat)))
+    return cmds
+
+
+def _safe_label(s):
+    return re.sub(r"[^A-Za-z0-9_.-]", "_", s)[:60]
+
+
+def _list_symbols(uprobe_targets, patterns):
+    """Print exported symbols in each uprobe target matching the pattern prefixes.
+
+    Helps users spot the inlined-symbol gotcha (a symbol absent here won't be
+    uprobe-traceable) before committing to a long trace.
+    """
+    if not uprobe_targets:
+        print("[list-symbols] no uprobe targets; pass --uprobe-target or --auto-uprobe")
+        return
+    prefixes = [p.split(":")[-1].rstrip("*") for p in patterns]
+    for tgt in uprobe_targets:
+        print(f"\n=== {tgt} ===")
+        try:
+            out = subprocess.run(["nm", "-D", "--defined-only", tgt],
+                                 capture_output=True, text=True, timeout=30).stdout
+        except (OSError, subprocess.SubprocessError) as e:
+            print(f"  (nm failed: {e})")
+            continue
+        hits = []
+        for line in out.splitlines():
+            parts = line.split()
+            if len(parts) >= 3 and parts[1] in ("T", "t", "W"):
+                name = parts[2]
+                if any(name.startswith(pre) for pre in prefixes if pre):
+                    hits.append(name)
+        for name in sorted(set(hits))[:60]:
+            print(f"  {name}")
+        print(f"  ({len(set(hits))} matching exported symbols)")
+
+
+# ---------------------------------------------------------------------------
 # Collection helpers
 # ---------------------------------------------------------------------------
 
@@ -332,6 +419,19 @@ def main(argv=None):
     ap.add_argument("--save-profile", metavar="PATH",
                     help="Save resolved profile to JSON after merging all inputs")
 
+    # uprobe latency tracing (for userspace symbols: rte_*, EVP_*, etc.)
+    ap.add_argument("--uprobe-target", action="append", default=[], metavar="PATH",
+                    help="Binary/lib whose symbols --functions patterns resolve against "
+                         "as uprobes, e.g. /usr/lib/.../libcrypto.so.3 (repeatable). "
+                         "Use 'exe' to mean the profiled process's own executable.")
+    ap.add_argument("--auto-uprobe", action="store_true",
+                    help="Trace --functions patterns as uprobes against the profiled "
+                         "process's own executable (/proc/PID/exe) — for statically "
+                         "linked DPDK apps")
+    ap.add_argument("--list-symbols", action="store_true",
+                    help="List traceable exported symbols matching --functions in each "
+                         "uprobe target (via nm), then exit without profiling")
+
     args = ap.parse_args(argv)
 
     # ── Resolve profile ──────────────────────────────────────────────────────
@@ -371,6 +471,31 @@ def main(argv=None):
     else:
         pid = args.pid
 
+    # ── Resolve uprobe targets (after pid is known: 'exe'/--auto-uprobe need it) ─
+    uprobe_targets = []
+    for tok in args.uprobe_target:
+        resolved = resolve_uprobe_target(tok, pid)
+        if resolved and Path(resolved).exists():
+            uprobe_targets.append(resolved)
+        else:
+            print(f"[warn] uprobe target not found, skipping: {tok}")
+    if args.auto_uprobe:
+        exe = resolve_uprobe_target("exe", pid)
+        if exe and exe not in uprobe_targets:
+            uprobe_targets.append(exe)
+            print(f"[uprobe] auto target (statically-linked exe): {exe}")
+            print("[uprobe] note: inlined symbols (many hot rte_*) may report no hits")
+    # Profile may declare default uprobe targets (e.g. ssl → libcrypto/libssl)
+    for tgt in getattr(profile, "uprobe_targets", []):
+        if Path(tgt).exists() and tgt not in uprobe_targets:
+            uprobe_targets.append(tgt)
+    if uprobe_targets:
+        print(f"[uprobe] targets: {uprobe_targets}")
+
+    if args.list_symbols:
+        _list_symbols(uprobe_targets, funclat_patterns)
+        return
+
     collect_static(pid, outdir)
 
     # ── AMD CCX / CCD / GMI snapshot (passive sysfs + best-effort HSMP) ────────
@@ -387,16 +512,15 @@ def main(argv=None):
 
     flogs = []
     fprocs = []
-    for i, pat in enumerate(funclat_patterns):
-        fpath = outdir / f"funclatency_{i}.txt"
+    # funclatency-bpfcc is the Debian/Ubuntu package name. Patterns are traced as
+    # kprobes by default, or uprobes when a target binary/lib is given (see
+    # build_funclatency_cmds) so userspace symbols (rte_*, EVP_*) can be measured.
+    funclat_cmds = build_funclatency_cmds(pid, funclat_patterns, uprobe_targets)
+    for i, (argv, label) in enumerate(funclat_cmds):
+        fpath = outdir / f"funclatency_{i}_{label}.txt"
         flogs.append(fpath)
         f = open(fpath, "w")
-        # funclatency-bpfcc is the Debian/Ubuntu package name
-        fprocs.append((
-            popen(["funclatency-bpfcc", "-p", str(pid), "-u", pat],
-                  stdout=f, stderr=subprocess.STDOUT),
-            f,
-        ))
+        fprocs.append((popen(argv, stdout=f, stderr=subprocess.STDOUT), f))
 
     try:
         perf_proc.wait()

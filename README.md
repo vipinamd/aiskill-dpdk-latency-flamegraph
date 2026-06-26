@@ -196,6 +196,45 @@ note   : associated with kernel interaction, not proof of causality
 
 ---
 
+## Latency tracing (kprobe vs uprobe)
+
+`funclatency-bpfcc` measures per-function latency, which becomes the frame border
++ tooltip. By default patterns are traced as **kprobes** (kernel functions). But
+DPDK and crypto APIs (`rte_*`, `EVP_*`, `SSL_*`) are **userspace** symbols living
+in an executable or shared library — kprobes cannot see them. For those, trace as
+**uprobes** bound to a binary/library:
+
+```bash
+# Trace EVP_* in libcrypto as uprobes (e.g. an OpenSSL workload)
+sudo python3 -m dpdk_fg.cli --pid <PID> --profile ssl \
+  --functions 'EVP_EncryptUpdate' \
+  --uprobe-target /usr/lib/x86_64-linux-gnu/libcrypto.so.3 \
+  --flamegraph-dir ./FlameGraph --out out
+
+# Statically-linked DPDK app: trace its own exported rte_* symbols
+sudo python3 -m dpdk_fg.cli --app --auto-uprobe \
+  --functions 'rte_eal_wait_lcore' \
+  --flamegraph-dir ./FlameGraph --out out -- ./build/app/dpdk-app ...
+```
+
+| Flag | Effect |
+|---|---|
+| (none) | `--functions` patterns traced as kprobes (kernel symbols) |
+| `--uprobe-target PATH` | resolve patterns against this binary/lib as uprobes (repeatable) |
+| `--auto-uprobe` | use the profiled process's own executable (`/proc/PID/exe`) as the uprobe target — for statically linked DPDK apps |
+| `--list-symbols` | list exported, uprobe-traceable symbols matching `--functions` in each target, then exit |
+| `path:func` in `--functions` | bcc-native form, passed through verbatim; `exe:func` expands to `/proc/PID/exe` |
+
+The `ssl` profile sets `libcrypto`/`libssl` as default uprobe targets, so
+`--profile ssl` traces crypto APIs as uprobes automatically.
+
+**Caveat — inlined symbols:** many hot `rte_*` APIs are `static inline` in DPDK
+headers, so no exported symbol is ever called and a uprobe on it reports zero hits.
+Use `--list-symbols` to see what is actually traceable, and prefer non-inlined
+library functions (e.g. `EVP_EncryptUpdate` in libcrypto) for latency overlays.
+
+---
+
 ## Kernel interaction logic
 
 A DPDK / PMD / userspace frame is darkened when the stack contains kernel-facing signals such as:

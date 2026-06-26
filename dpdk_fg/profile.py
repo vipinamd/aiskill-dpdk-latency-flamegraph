@@ -53,6 +53,9 @@ class Profile:
     medium_ns: int = 1000
     # Default funclatency patterns (may be overridden via CLI)
     funclatency_patterns: List[str] = field(default_factory=list)
+    # Default uprobe target binaries/libs for userspace latency tracing
+    # (e.g. ssl → libcrypto/libssl). Patterns resolve against these as uprobes.
+    uprobe_targets: List[str] = field(default_factory=list)
     # Hot symbol → category_id override injected by --skill-output
     _hot_symbol_map: Dict[str, str] = field(default_factory=dict, repr=False)
 
@@ -115,6 +118,11 @@ _BUILTIN: Dict[str, dict] = {
         "high_ns": 10000,
         "medium_ns": 2000,
         "funclatency_patterns": ["SSL_*", "EVP_*", "BIO_*"],
+        # SSL/crypto symbols live in libcrypto/libssl → trace as uprobes by default.
+        "uprobe_targets": [
+            "/usr/lib/x86_64-linux-gnu/libcrypto.so.3",
+            "/usr/lib/x86_64-linux-gnu/libssl.so.3",
+        ],
     },
 
     "kernel-net": {
@@ -213,6 +221,7 @@ def _profile_from_dict(d: dict) -> Profile:
         high_ns=d.get("high_ns", d.get("latency_thresholds", {}).get("high_ns", 5000)),
         medium_ns=d.get("medium_ns", d.get("latency_thresholds", {}).get("medium_ns", 1000)),
         funclatency_patterns=d.get("funclatency_patterns", []),
+        uprobe_targets=d.get("uprobe_targets", []),
     )
 
 
@@ -251,6 +260,7 @@ def save_profile(profile: Profile, path: str) -> None:
         "high_ns": profile.high_ns,
         "medium_ns": profile.medium_ns,
         "funclatency_patterns": profile.funclatency_patterns,
+        "uprobe_targets": profile.uprobe_targets,
     }
     Path(path).write_text(json.dumps(d, indent=2))
 
