@@ -535,11 +535,21 @@ def main(argv=None):
         perf_proc.wait()
     finally:
         for p, f in fprocs:
+            # funclatency-bpfcc prints its histogram only on SIGINT, and BPF
+            # detach + dump can take several seconds. Give it room before SIGKILL,
+            # otherwise the output file is truncated to empty.
             try:
                 p.send_signal(signal.SIGINT)
-                p.wait(timeout=2)
+                p.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                p.send_signal(signal.SIGINT)  # second nudge
+                try:
+                    p.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    p.kill()
             except Exception:
                 p.kill()
+            f.flush()
             f.close()
         collect_interrupts_after(outdir)
         if app_proc:
