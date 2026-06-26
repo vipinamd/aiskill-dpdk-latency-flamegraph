@@ -76,11 +76,13 @@ def enhance_svg(svg_path, out_path, latency, frame_cpus, topo, kernel_assoc, pro
                 gmi_map=None):
     """Rewrite FlameGraph SVG frames. Width is never changed."""
     svg = Path(svg_path).read_text(errors="ignore")
-    groups = re.findall(r"<g>.*?</g>", svg, re.DOTALL)
+    # flamegraph.pl emits frame groups as "<g >" / "<g class=...>"; match any opening <g ...>.
+    groups = re.findall(r"<g\b[^>]*>.*?</g>", svg, re.DOTALL)
 
     for g in groups:
         tm = re.search(r"<title>(.*?)</title>", g, re.DOTALL)
-        rm = re.search(r"<rect ([^>]*)>", g, re.DOTALL)
+        # rects may be self-closing ("<rect ... />") in modern flamegraph.pl.
+        rm = re.search(r"<rect ([^>]*?)\s*/?>", g, re.DOTALL)
         if not tm or not rm:
             continue
 
@@ -113,7 +115,7 @@ def enhance_svg(svg_path, out_path, latency, frame_cpus, topo, kernel_assoc, pro
 
         new_title = title + (("\n" + "\n".join(extra)) if extra else "")
 
-        attrs = rm.group(1)
+        attrs = rm.group(1).rstrip().rstrip("/").rstrip()
         attrs = re.sub(r'fill="[^"]*"', f'fill="{fill}"', attrs)
         if "fill=" not in attrs:
             attrs += f' fill="{fill}"'
@@ -133,8 +135,8 @@ def enhance_svg(svg_path, out_path, latency, frame_cpus, topo, kernel_assoc, pro
         if bcol != "none":
             attrs += f' stroke="{bcol}" stroke-width="{bwid}"{dash}'
 
-        new_g = re.sub(r"<title>.*?</title>", f"<title>{new_title}</title>", g, flags=re.DOTALL)
-        new_g = re.sub(r"<rect [^>]*>", f"<rect {attrs}>", new_g, flags=re.DOTALL)
+        new_g = re.sub(r"<title>.*?</title>", lambda _: f"<title>{new_title}</title>", g, count=1, flags=re.DOTALL)
+        new_g = re.sub(r"<rect [^>]*?/?>", lambda _: f"<rect {attrs} />", new_g, count=1, flags=re.DOTALL)
         svg = svg.replace(g, new_g)
 
     Path(out_path).write_text(svg)
