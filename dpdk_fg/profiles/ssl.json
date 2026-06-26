@@ -1,0 +1,41 @@
+{
+  "name": "ssl",
+  "description": "OpenSSL / TLS / cryptographic library userspace paths",
+  "categories": [
+    {
+      "id": "ssl_api",
+      "label": "SSL/TLS API",
+      "color": "#f97316",
+      "prefixes": ["SSL_", "TLS_", "ssl_", "tls_", "DTLS_"],
+      "hints": [],
+      "kernel_interaction_color": "#c2410c"
+    },
+    {
+      "id": "crypto",
+      "label": "Crypto / BIO",
+      "color": "#fbbf24",
+      "prefixes": ["EVP_", "BIO_", "BN_", "EC_", "RSA_", "DSA_", "AES_", "SHA", "HMAC_", "RAND_", "X509_", "PKCS"],
+      "hints": ["aesni", "chacha", "poly1305", "ghash", "crc32"],
+      "kernel_interaction_color": "#92400e"
+    },
+    {
+      "id": "kernel",
+      "label": "Kernel",
+      "color": "#3b82f6",
+      "is_kernel": true
+    },
+    {
+      "id": "other",
+      "label": "Other",
+      "color": "#9ca3af",
+      "is_default": true
+    }
+  ],
+  "kernel_hints": [
+    "sys_", "__x64_sys_", "__se_sys_", "__ia32_sys_",
+    "ksys_", "kernel_", "__sys_"
+  ],
+  "high_ns": 10000,
+  "medium_ns": 2000,
+  "funclatency_patterns": ["SSL_*", "EVP_*", "BIO_*"]
+}

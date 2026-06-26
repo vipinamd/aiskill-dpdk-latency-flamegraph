@@ -1,0 +1,39 @@
+{
+  "name": "lock",
+  "description": "Lock and atomic contention — use with --skill-output from lock-atomic-contention skill",
+  "categories": [
+    {
+      "id": "contended_lock",
+      "label": "Contended Lock",
+      "color": "#dc2626",
+      "prefixes": [],
+      "hints": ["mutex", "futex", "__lll_lock", "pthread_mutex", "spin_lock", "spin_trylock", "osq_lock", "mcs_spin"],
+      "kernel_interaction_color": "#7f1d1d"
+    },
+    {
+      "id": "atomic",
+      "label": "Atomic / CAS",
+      "color": "#f59e0b",
+      "prefixes": [],
+      "hints": ["atomic_cmpxchg", "__cmpxchg", "_raw_spin", "atomic_fetch", "atomic_add", "xchg", "cmpxchg"]
+    },
+    {
+      "id": "kernel",
+      "label": "Kernel",
+      "color": "#3b82f6",
+      "is_kernel": true
+    },
+    {
+      "id": "other",
+      "label": "Other",
+      "color": "#9ca3af",
+      "is_default": true
+    }
+  ],
+  "kernel_hints": [
+    "sys_", "schedule", "futex_wait", "mutex_lock", "__lock_page"
+  ],
+  "high_ns": 1000,
+  "medium_ns": 100,
+  "funclatency_patterns": ["pthread_mutex_*", "futex*"]
+}

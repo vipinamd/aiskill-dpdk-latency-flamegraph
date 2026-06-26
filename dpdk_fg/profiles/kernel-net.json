@@ -1,0 +1,37 @@
+{
+  "name": "kernel-net",
+  "description": "Linux kernel networking stack (softirq, NAPI, socket, NIC driver)",
+  "categories": [
+    {
+      "id": "softirq",
+      "label": "SoftIRQ / NAPI",
+      "color": "#a855f7",
+      "prefixes": [],
+      "hints": ["softirq", "napi", "net_rx_action", "__softirqentry", "ksoftirqd", "run_ksoftirqd"]
+    },
+    {
+      "id": "socket",
+      "label": "Socket / TCP/UDP",
+      "color": "#6366f1",
+      "prefixes": ["sock_", "tcp_", "udp_", "ip_", "skb_", "sk_", "inet_"],
+      "hints": ["sendmsg", "recvmsg", "sendto", "recvfrom"]
+    },
+    {
+      "id": "driver",
+      "label": "NIC Driver",
+      "color": "#0ea5e9",
+      "prefixes": [],
+      "hints": ["mlx5", "bnxt", "i40e", "iavf", "igb_", "ixgbe", "ena_", "sfc_", "nfp_", "ice_"]
+    },
+    {
+      "id": "other",
+      "label": "Other Kernel",
+      "color": "#9ca3af",
+      "is_default": true
+    }
+  ],
+  "kernel_hints": [],
+  "high_ns": 20000,
+  "medium_ns": 5000,
+  "funclatency_patterns": ["tcp_*", "udp_*", "napi_*"]
+}

@@ -1,7 +1,7 @@
 [project]
 name = "dpdk-topology-latency-flamegraph"
-version = "0.1.0"
-description = "Enhance FlameGraph with DPDK coloring, funclatency, topology, and kernel interaction signals"
+version = "0.2.0"
+description = "Enhance FlameGraph with target-profile coloring, funclatency, topology, and kernel interaction — supports DPDK, SSL, lock contention, and user-defined targets"
 requires-python = ">=3.9"
 
 [project.scripts]

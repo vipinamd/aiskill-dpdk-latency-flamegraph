@@ -1,0 +1,42 @@
+{
+  "name": "dpdk",
+  "description": "DPDK and PMD userspace datapath (rte_*, PMD driver callbacks)",
+  "categories": [
+    {
+      "id": "dpdk",
+      "label": "DPDK API",
+      "color": "#22c55e",
+      "prefixes": ["rte_", "__rte_"],
+      "hints": [],
+      "kernel_interaction_color": "#14532d"
+    },
+    {
+      "id": "pmd",
+      "label": "PMD / Driver",
+      "color": "#15803d",
+      "prefixes": [],
+      "hints": ["rx", "tx", "burst", "qdma", "mlx5", "bnxt", "iavf", "ice", "ena", "sfc", "i40e"],
+      "kernel_interaction_color": "#064e3b"
+    },
+    {
+      "id": "kernel",
+      "label": "Kernel",
+      "color": "#3b82f6",
+      "is_kernel": true
+    },
+    {
+      "id": "other",
+      "label": "Other",
+      "color": "#9ca3af",
+      "is_default": true
+    }
+  ],
+  "kernel_hints": [
+    "sys_", "__x64_sys", "ioctl", "read", "write", "mmap", "munmap",
+    "epoll", "eventfd", "vfio", "uio", "irq", "softirq", "napi",
+    "net_rx_action", "__softirqentry", "schedule", "fput", "sock_"
+  ],
+  "high_ns": 5000,
+  "medium_ns": 1000,
+  "funclatency_patterns": ["rte_*", "qdma_*"]
+}

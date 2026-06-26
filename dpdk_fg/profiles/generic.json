@@ -1,0 +1,24 @@
+{
+  "name": "generic",
+  "description": "Empty profile — add categories via --extra-category or --skill-output",
+  "categories": [
+    {
+      "id": "kernel",
+      "label": "Kernel",
+      "color": "#3b82f6",
+      "is_kernel": true
+    },
+    {
+      "id": "other",
+      "label": "Other",
+      "color": "#9ca3af",
+      "is_default": true
+    }
+  ],
+  "kernel_hints": [
+    "sys_", "__x64_sys", "ioctl", "schedule", "softirq"
+  ],
+  "high_ns": 5000,
+  "medium_ns": 1000,
+  "funclatency_patterns": []
+}
