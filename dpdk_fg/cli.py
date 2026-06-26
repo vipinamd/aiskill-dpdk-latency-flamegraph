@@ -424,6 +424,10 @@ def main(argv=None):
                     help="Binary/lib whose symbols --functions patterns resolve against "
                          "as uprobes, e.g. /usr/lib/.../libcrypto.so.3 (repeatable). "
                          "Use 'exe' to mean the profiled process's own executable.")
+    ap.add_argument("--warmup", type=int, default=1, metavar="S",
+                    help="Seconds to wait after launching --app before profiling, so "
+                         "DPDK EAL/PMD init completes and the datapath is running "
+                         "(default 1; use ~8 for DPDK apps)")
     ap.add_argument("--auto-uprobe", action="store_true",
                     help="Trace --functions patterns as uprobes against the profiled "
                          "process's own executable (/proc/PID/exe) — for statically "
@@ -467,7 +471,12 @@ def main(argv=None):
             ap.error("--app requires command after --")
         app_proc = popen(cmd)
         pid = app_proc.pid
-        time.sleep(1)
+        # DPDK apps need several seconds of EAL/driver init before the datapath
+        # runs; profiling too early misses all the work. Default 1s for cheap
+        # apps; raise --warmup for DPDK (EAL+PMD probe is typically 5-8s).
+        if args.warmup > 0:
+            print(f"[warmup] waiting {args.warmup}s for app to reach steady state")
+        time.sleep(max(1, args.warmup))
     else:
         pid = args.pid
 
